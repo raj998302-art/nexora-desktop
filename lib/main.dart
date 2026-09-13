@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:provider/provider.dart';
+
+import 'src/theme/app_colors.dart';
+import 'src/providers/ui_provider.dart';
+import 'src/screens/main_layout.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -8,7 +13,7 @@ void main() async {
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1280, 800),
     center: true,
-    backgroundColor: Color(0xFF1E1E1E),
+    backgroundColor: AppColors.background,
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.hidden,
   );
@@ -18,7 +23,14 @@ void main() async {
     await windowManager.focus();
   });
 
-  runApp(const NexoraApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => UiProvider()),
+      ],
+      child: const NexoraApp(),
+    ),
+  );
 }
 
 class NexoraApp extends StatelessWidget {
@@ -30,37 +42,16 @@ class NexoraApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'NEXORA',
       theme: ThemeData(
+        fontFamily: 'Segoe UI', // Generic sans-serif fallback
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF1E1E1E),
-      ),
-      home: const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.auto_awesome, size: 64, color: Colors.blue),
-              SizedBox(height: 24),
-              Text(
-                'NEXORA DESKTOP',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 4.0,
-                  color: Colors.white,
-                ),
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Initializing Desktop Environment...',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
-              ),
-            ],
-          ),
+        scaffoldBackgroundColor: AppColors.background,
+        colorScheme: const ColorScheme.dark(
+          primary: AppColors.accentBlue,
+          background: AppColors.background,
+          surface: AppColors.panelBackground,
         ),
       ),
+      home: const MainLayout(),
     );
   }
 }
