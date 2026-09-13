@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+
 import '../theme/app_colors.dart';
 
 class TopBar extends StatelessWidget {
@@ -50,7 +50,7 @@ class TopBar extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [
-                  Icon(LucideIcons.search, size: 12, color: AppColors.textSecondary),
+                  Icon(Icons.star, size: 12, color: AppColors.textSecondary),
                   SizedBox(width: 8),
                   Text('NEXORA', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                 ],

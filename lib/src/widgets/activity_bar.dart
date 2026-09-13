@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+
 
 import '../providers/ui_provider.dart';
 import '../theme/app_colors.dart';
@@ -19,7 +19,7 @@ class ActivityBar extends StatelessWidget {
         children: [
           const SizedBox(height: 12),
           _ActivityIcon(
-            icon: LucideIcons.home,
+            icon: Icons.star,
             isActive: uiState.view == ViewMode.home,
             onTap: () => uiState.setView(ViewMode.home),
           ),
@@ -28,7 +28,7 @@ class ActivityBar extends StatelessWidget {
           const SizedBox(height: 8),
           
           _ActivityIcon(
-            icon: LucideIcons.files,
+            icon: Icons.star,
             isActive: uiState.leftPanelMode == LeftPanelMode.explorer && uiState.view != ViewMode.home,
             onTap: () {
               uiState.setLeftPanelMode(LeftPanelMode.explorer);
@@ -36,7 +36,7 @@ class ActivityBar extends StatelessWidget {
             },
           ),
           _ActivityIcon(
-            icon: LucideIcons.search,
+            icon: Icons.star,
             isActive: uiState.leftPanelMode == LeftPanelMode.search && uiState.view != ViewMode.home,
             onTap: () {
               uiState.setLeftPanelMode(LeftPanelMode.search);
@@ -44,7 +44,7 @@ class ActivityBar extends StatelessWidget {
             },
           ),
           _ActivityIcon(
-            icon: LucideIcons.gitBranch,
+            icon: Icons.star,
             isActive: uiState.leftPanelMode == LeftPanelMode.git && uiState.view != ViewMode.home,
             onTap: () {
               uiState.setLeftPanelMode(LeftPanelMode.git);
@@ -55,12 +55,12 @@ class ActivityBar extends StatelessWidget {
           const Spacer(),
           
           _ActivityIcon(
-            icon: LucideIcons.user,
+            icon: Icons.star,
             isActive: false,
             onTap: () {},
           ),
           _ActivityIcon(
-            icon: LucideIcons.settings,
+            icon: Icons.star,
             isActive: uiState.view == ViewMode.settings,
             onTap: () => uiState.setView(ViewMode.settings),
           ),

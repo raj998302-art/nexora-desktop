@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+
 import '../theme/app_colors.dart';
 
 class ExplorerPanel extends StatelessWidget {
@@ -24,11 +24,11 @@ class ExplorerPanel extends StatelessWidget {
                 const Text('EXPLORER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                 Row(
                   children: const [
-                    Icon(LucideIcons.filePlus, size: 14, color: AppColors.textSecondary),
+                    Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                     SizedBox(width: 8),
-                    Icon(LucideIcons.folderPlus, size: 14, color: AppColors.textSecondary),
+                    Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                     SizedBox(width: 8),
-                    Icon(LucideIcons.refreshCcw, size: 14, color: AppColors.textSecondary),
+                    Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                   ],
                 ),
               ],

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+
 import '../theme/app_colors.dart';
 
 class AiChat extends StatelessWidget {
@@ -28,18 +28,18 @@ class AiChat extends StatelessWidget {
               children: [
                 Row(
                   children: const [
-                    Icon(LucideIcons.sparkles, size: 14, color: AppColors.blueLight),
+                    Icon(Icons.star, size: 14, color: AppColors.blueLight),
                     SizedBox(width: 8),
                     Text('Composer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   ],
                 ),
                 Row(
                   children: const [
-                    Icon(LucideIcons.history, size: 14, color: AppColors.textSecondary),
+                    Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                     SizedBox(width: 8),
-                    Icon(LucideIcons.maximize2, size: 14, color: AppColors.textSecondary),
+                    Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                     SizedBox(width: 8),
-                    Icon(LucideIcons.moreHorizontal, size: 14, color: AppColors.textSecondary),
+                    Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                   ],
                 ),
               ],
@@ -93,17 +93,17 @@ class AiChat extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            const Icon(LucideIcons.zap, size: 14, color: AppColors.blueLight),
+                            const Icon(Icons.star, size: 14, color: AppColors.blueLight),
                             const SizedBox(width: 4),
                             const Text('Agent', style: TextStyle(color: AppColors.blueLight, fontSize: 12)),
                             const SizedBox(width: 4),
                             const Icon(Icons.arrow_drop_down, size: 16, color: AppColors.textSecondary),
                             const SizedBox(width: 8),
-                            const Icon(LucideIcons.atSign, size: 14, color: AppColors.textSecondary),
+                            const Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                             const SizedBox(width: 8),
-                            const Icon(LucideIcons.brain, size: 14, color: AppColors.textSecondary),
+                            const Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                             const SizedBox(width: 8),
-                            const Icon(LucideIcons.globe, size: 14, color: AppColors.textSecondary),
+                            const Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                           ],
                         ),
                         Container(
@@ -112,7 +112,7 @@ class AiChat extends StatelessWidget {
                             color: AppColors.accentBlue,
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: const Icon(LucideIcons.send, size: 12, color: Colors.white),
+                          child: const Icon(Icons.star, size: 12, color: Colors.white),
                         )
                       ],
                     ),
@@ -151,7 +151,7 @@ class AiChat extends StatelessWidget {
       children: [
         Row(
           children: const [
-            Icon(LucideIcons.sparkles, size: 14, color: AppColors.blueLight),
+            Icon(Icons.star, size: 14, color: AppColors.blueLight),
             SizedBox(width: 4),
             Text('NEXORA Agent', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.blueLight)),
           ],

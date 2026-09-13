@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+
 import '../theme/app_colors.dart';
 
 class TerminalPane extends StatelessWidget {
@@ -44,20 +44,20 @@ class TerminalPane extends StatelessWidget {
                       ),
                       child: Row(
                         children: const [
-                          Icon(LucideIcons.terminalSquare, size: 12, color: AppColors.textPrimary),
+                          Icon(Icons.star, size: 12, color: AppColors.textPrimary),
                           SizedBox(width: 4),
                           Text('bash', style: TextStyle(color: AppColors.textPrimary, fontSize: 11)),
                         ],
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Icon(LucideIcons.plus, size: 14, color: AppColors.textSecondary),
+                    const Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                     const SizedBox(width: 8),
-                    const Icon(LucideIcons.splitSquareHorizontal, size: 14, color: AppColors.textSecondary),
+                    const Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                     const SizedBox(width: 8),
-                    const Icon(LucideIcons.trash2, size: 14, color: AppColors.textSecondary),
+                    const Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                     const SizedBox(width: 8),
-                    const Icon(LucideIcons.x, size: 14, color: AppColors.textSecondary),
+                    const Icon(Icons.star, size: 14, color: AppColors.textSecondary),
                   ],
                 )
               ],

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+
 import '../theme/app_colors.dart';
 
 class HomeDashboard extends StatelessWidget {
@@ -16,7 +16,7 @@ class HomeDashboard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: const [
-                Icon(LucideIcons.sparkles, color: AppColors.blueLight, size: 32),
+                Icon(Icons.star, color: AppColors.blueLight, size: 32),
                 SizedBox(width: 12),
                 Text(
                   'NEXORA',
@@ -63,11 +63,11 @@ class HomeDashboard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            _ActionChip(icon: LucideIcons.messageSquare, label: 'Agent'),
+                            _ActionChip(icon: Icons.star, label: 'Agent'),
                             const SizedBox(width: 8),
-                            _ActionChip(icon: LucideIcons.atSign, label: 'Context'),
+                            _ActionChip(icon: Icons.star, label: 'Context'),
                             const SizedBox(width: 8),
-                            _ActionChip(icon: LucideIcons.brain, label: 'Thinking'),
+                            _ActionChip(icon: Icons.star, label: 'Thinking'),
                           ],
                         ),
                         Container(
@@ -76,7 +76,7 @@ class HomeDashboard extends StatelessWidget {
                             color: AppColors.accentBlue,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Icon(LucideIcons.sparkles, size: 16, color: Colors.white),
+                          child: const Icon(Icons.star, size: 16, color: Colors.white),
                         )
                       ],
                     ),
