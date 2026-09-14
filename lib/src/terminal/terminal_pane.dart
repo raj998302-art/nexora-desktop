@@ -243,15 +243,6 @@ class _TerminalPaneState extends State<TerminalPane> {
                   session.title.toLowerCase(),
                   style: TextStyle(fontSize: 12, color: c.textPrimary),
                 ),
-                const SizedBox(width: 6),
-                Tooltip(
-                  message: 'Close session',
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => term.closeSession(index),
-                    child: Icon(Icons.close, size: 10, color: c.textSecondary),
-                  ),
-                ),
               ],
             ),
           ),

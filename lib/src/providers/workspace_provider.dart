@@ -25,6 +25,15 @@ class WorkspaceProvider extends ChangeNotifier {
     _recents.addAll(SettingsService.loadRecents());
   }
 
+  /// Test-only: replace the recents list with fixed entries. Deterministic
+  /// goldens — no disk load, no wall-clock drift in `_relativeTime`.
+  @visibleForTesting
+  void seedRecentsForTest(List<RecentFolder> items) {
+    _recents
+      ..clear()
+      ..addAll(items);
+  }
+
   bool get hasWorkspace => _rootPath != null;
 
   Future<void> openFolder(String path) async {

@@ -396,21 +396,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _sectionHeader(
-            c, 'General', 'Configure workspace behavior and editor defaults.'),
+            c, 'General', 'Configure basic workspace behavior.'),
         const SizedBox(height: 28),
-        // Mock (prototype):
-        _toggleRow(c, 'Auto Save', 'Automatically save files as you edit.',
+        // Mock (prototype — exact order + copy: Auto Save, Format on Save, Shell):
+        _toggleRow(c, 'Auto Save', 'Automatically save files after a delay.',
             _autoSave, (v) => setState(() => _autoSave = v)),
         _toggleRow(c, 'Format on Save',
-            'Run the default formatter when saving files.', _formatOnSave,
+            'Run Prettier or the default formatter when saving.', _formatOnSave,
             (v) => setState(() => _formatOnSave = v)),
-        // Real:
-        _toggleRow(c, 'Show Line Numbers',
-            'Display line numbers in the editor gutter.', s.showLineNumbers,
-            (v) => sp.update((st) => st.showLineNumbers = v)),
-        _toggleRow(c, 'Word Wrap', 'Wrap long lines to fit the editor width.',
-            s.wordWrap, (v) => sp.update((st) => st.wordWrap = v)),
-        _tabSizeRow(c, sp),
         const SizedBox(height: 32),
         _fieldLabel(c, 'Default Terminal Shell'),
         const SizedBox(height: 8),
@@ -418,6 +411,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: _shell,
             items: const ['bash', 'zsh', 'powershell'],
             onChanged: (v) => setState(() => _shell = v)),
+        // Real editor controls (beyond the prototype — functional extras):
+        const SizedBox(height: 32),
+        _toggleRow(c, 'Show Line Numbers',
+            'Display line numbers in the editor gutter.', s.showLineNumbers,
+            (v) => sp.update((st) => st.showLineNumbers = v)),
+        _toggleRow(c, 'Word Wrap', 'Wrap long lines to fit the editor width.',
+            s.wordWrap, (v) => sp.update((st) => st.wordWrap = v)),
+        _tabSizeRow(c, sp),
       ],
     );
   }

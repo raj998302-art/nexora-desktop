@@ -509,37 +509,26 @@ class _AiChatState extends State<AiChat> {
         children: [
           Icon(Icons.auto_awesome, size: 16, color: c.blue400),
           const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              'Composer',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: c.textPrimary,
-              ),
+          // Title never ellipsizes (prototype); the model chip flexes first.
+          Text(
+            'Composer',
+            maxLines: 1,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: c.textPrimary,
             ),
           ),
           const Spacer(),
-          const SizedBox(width: 8),
-          _buildModelChip(c, settings),
+          Flexible(
+              flex: 4, child: _buildModelChip(c, settings)),
           const SizedBox(width: 12),
           _buildHistoryButton(),
           const SizedBox(width: 12),
-          NexoraIconButton(
-            onPressed: _noop,
-            icon: Icons.open_in_full,
-            size: 14,
-            tooltip: 'Maximize',
-          ),
+          const _HeaderIcon(
+              icon: Icons.open_in_full, tooltip: 'Maximize'),
           const SizedBox(width: 12),
-          NexoraIconButton(
-            onPressed: _noop,
-            icon: Icons.more_horiz,
-            size: 14,
-            tooltip: 'More',
-          ),
+          const _HeaderIcon(icon: Icons.more_horiz, tooltip: 'More'),
         ],
       ),
     );
@@ -547,6 +536,8 @@ class _AiChatState extends State<AiChat> {
 
   static void _noop() {}
 
+  // Bare 14px header icon (prototype: `size={14} cursor-pointer
+  // hover:text-white` — no button box, no padding).
   /// Model chip: shows the live [AppSettings.aiModel]; clicking opens the
   /// REAL model picker (SettingsProvider.availableModels) when the list is
   /// non-empty, otherwise it is a passive display chip.
@@ -559,13 +550,17 @@ class _AiChatState extends State<AiChat> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 90),
-            child: Text(
-              settings.settings.aiModel,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: c.textPrimary),
+          // Flexible so the chip can shrink when the header Row is tight —
+          // the model name ellipsizes, never the "Composer" title.
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 80),
+              child: Text(
+                settings.settings.aiModel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: c.textPrimary),
+              ),
             ),
           ),
           const SizedBox(width: 4),
@@ -584,11 +579,10 @@ class _AiChatState extends State<AiChat> {
       link: _historyLink,
       child: TapRegion(
         groupId: _tapGroup,
-        child: NexoraIconButton(
-          onPressed: () => _toggleMenu(_MenuId.history),
+        child: _HeaderIcon(
           icon: Icons.history,
-          size: 14,
           tooltip: 'Chat history',
+          onTap: () => _toggleMenu(_MenuId.history),
         ),
       ),
     );
@@ -1206,6 +1200,58 @@ class _AiChatState extends State<AiChat> {
 // ---------------------------------------------------------------------------
 // Small prototype-styled primitives private to this file.
 // ---------------------------------------------------------------------------
+
+/// Prototype `text-white` → pure white on dark, textPrimary on light
+/// (light-mode readability, audit #5 pattern).
+Color _brightText(AppColors c) =>
+    c.brightness == Brightness.dark ? c.textOnAccent : c.textPrimary;
+
+/// Bare 14px header icon — prototype `History/Maximize2/MoreHorizontal
+/// size={14} cursor-pointer hover:text-white`: no button box, no padding,
+/// color #cccccc → white on hover.
+class _HeaderIcon extends StatefulWidget {
+  const _HeaderIcon({required this.icon, this.tooltip, this.onTap});
+
+  final IconData icon;
+  final String? tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  State<_HeaderIcon> createState() => _HeaderIconState();
+}
+
+class _HeaderIconState extends State<_HeaderIcon> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.watch<UiProvider>().palette;
+    Widget icon = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap ?? _AiChatState._noop,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: NxMotion.fast,
+          width: 20,
+          height: 20,
+          alignment: Alignment.center,
+          child: Icon(
+            widget.icon,
+            size: 14,
+            color: _hover ? _brightText(c) : c.textPrimary,
+          ),
+        ),
+      ),
+    );
+    if (widget.tooltip != null) {
+      icon = Tooltip(message: widget.tooltip!, child: icon);
+    }
+    return icon;
+  }
+}
 
 /// Tinted or plain composer chip — prototype Mode/Thinking chips
 /// (`bg-blue-500/10 border-blue-500/30 text-blue-400` when tinted, plain

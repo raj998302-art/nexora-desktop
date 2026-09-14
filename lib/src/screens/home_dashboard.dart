@@ -416,38 +416,25 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Widget _logo(AppColors c) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Opacity(
-          opacity: 0.9,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.auto_awesome, size: 32, color: c.blue400),
-              const SizedBox(width: 12),
-              Text(
-                'NEXORA',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 30,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 2,
-                  color: _brightColor(c),
-                ),
-              ),
-            ],
+    return Opacity(
+      opacity: 0.9,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.auto_awesome, size: 32, color: c.blue400),
+          const SizedBox(width: 12),
+          Text(
+            'NEXORA',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 30,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 2,
+              color: _brightColor(c),
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'AI-native coding environment',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-              fontFamily: 'Inter', fontSize: 13, color: c.textSecondary),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -618,11 +605,20 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   Widget _thinkingChip(AppColors c) {
     final active = _thinking != _ThinkLevel.normal;
+    final label = switch (_thinking) {
+      _ThinkLevel.normal => 'Thinking',
+      _ThinkLevel.high => 'High',
+      _ThinkLevel.max => 'Max',
+      _ThinkLevel.ultra => 'Ultra',
+    };
     return _ChipButton(
       key: _thinkingChipKey,
       onTap: _toggleThinkingMenu,
       icon: Icons.psychology,
-      label: 'Thinking',
+      label: label,
+      trailing: Icon(Icons.expand_more,
+          size: 12,
+          color: active ? c.purple400 : c.textSecondary),
       bg: active ? c.purple400.withValues(alpha: 0.1) : Colors.transparent,
       hoverBg:
           active ? c.purple400.withValues(alpha: 0.1) : c.hoverBackground,
@@ -656,7 +652,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
       runSpacing: 8,
       children: [
         _ActionShortcut(
-            icon: Icons.note_add,
+            icon: Icons.add,
             label: 'New Project',
             kbd: '⌘ N',
             onTap: _newProject),
@@ -692,26 +688,16 @@ class _HomeDashboardState extends State<HomeDashboard> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'RECENT WORKSPACES',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2,
-                          color: c.textSecondary,
-                        ),
-                      ),
-                    ),
-                    _GhostTextButton(
-                      label: 'New chat',
-                      onTap: () =>
-                          context.read<ChatProvider>().newSession(),
-                    ),
-                  ],
+                Text(
+                  'RECENT WORKSPACES',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2,
+                    color: c.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 if (recents.isEmpty)
@@ -1232,44 +1218,3 @@ class _HoverRevealState extends State<_HoverReveal> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Small ghost text button ("New chat") — #858585 → white on hover.
-// ---------------------------------------------------------------------------
-
-class _GhostTextButton extends StatefulWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _GhostTextButton({required this.label, required this.onTap});
-
-  @override
-  State<_GhostTextButton> createState() => _GhostTextButtonState();
-}
-
-class _GhostTextButtonState extends State<_GhostTextButton> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.watch<UiProvider>().palette;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          child: AnimatedDefaultTextStyle(
-            duration: NxMotion.fast,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 11,
-              color: _hover ? _brightColor(c) : c.textSecondary,
-            ),
-            child: Text(widget.label),
-          ),
-        ),
-      ),
-    );
-  }
-}

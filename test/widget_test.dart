@@ -151,6 +151,6 @@ index 111..222 100644
     );
     await tester.pumpAndSettle();
     expect(find.text('NEXORA'), findsWidgets);
-    expect(find.textContaining('AI-native'), findsOneWidget);
+    expect(find.text('New Project'), findsOneWidget);
   });
 }

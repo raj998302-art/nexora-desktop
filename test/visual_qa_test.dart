@@ -103,6 +103,22 @@ Future<void> main() async {
   testWidgets('golden: home 1280x720 (full shell)', (tester) async {
     await at(tester, 1280, 720);
     final workspace = WorkspaceProvider();
+    // Fixed demo recents (prototype grid: NEXORA UI / AI Platform /
+    // Flutter App / API Gateway) with pinned dates — no wall-clock drift.
+    workspace.seedRecentsForTest([
+      RecentFolder(
+          path: '/home/user/Projects/NEXORA',
+          openedAt: DateTime(2024, 3, 12)),
+      RecentFolder(
+          path: '/home/user/Projects/ai-platform',
+          openedAt: DateTime(2024, 3, 11)),
+      RecentFolder(
+          path: '/home/user/Projects/flutter-app',
+          openedAt: DateTime(2024, 3, 9)),
+      RecentFolder(
+          path: '/home/user/Projects/api-gateway',
+          openedAt: DateTime(2024, 3, 2)),
+    ]);
     final chat = ChatProvider(ai: settings.ai, onFileWritten: (_) {});
     await tester.pumpWidget(
         shell(workspace: workspace, chat: chat));
@@ -159,7 +175,9 @@ class MyApp extends StatelessWidget {
     session.lines
       ..add(TermLine('user@nexora:~/qa_workspace\$ npm run dev'))
       ..add(TermLine('VITE v5.4.21  ready in 687 ms'))
-      ..add(TermLine('  Local:   http://localhost:5173/'));
+      ..add(TermLine('  Local:   http://localhost:5173/'))
+      ..add(TermLine('  Network: http://192.0.0.4:5173/'))
+      ..add(TermLine('  press h + enter to show help'));
 
     ui.setTerminalOpen(true);
     ui.setLeftPanelMode(LeftPanelMode.explorer);
@@ -197,6 +215,20 @@ class MyApp extends StatelessWidget {
       (tester) async {
     await at(tester, 1920, 1080);
     final workspace = WorkspaceProvider();
+    workspace.seedRecentsForTest([
+      RecentFolder(
+          path: '/home/user/Projects/NEXORA',
+          openedAt: DateTime(2024, 3, 12)),
+      RecentFolder(
+          path: '/home/user/Projects/ai-platform',
+          openedAt: DateTime(2024, 3, 11)),
+      RecentFolder(
+          path: '/home/user/Projects/flutter-app',
+          openedAt: DateTime(2024, 3, 9)),
+      RecentFolder(
+          path: '/home/user/Projects/api-gateway',
+          openedAt: DateTime(2024, 3, 2)),
+    ]);
     final chat = ChatProvider(ai: settings.ai, onFileWritten: (_) {});
     ui.setAgentRunning(true);
     await tester.pumpWidget(
@@ -206,5 +238,103 @@ class MyApp extends StatelessWidget {
     await expectLater(find.byType(NexoraApp),
         matchesGoldenFile('goldens/flutter_home_1080.png'));
     ui.setAgentRunning(false);
+  });
+
+  testWidgets('golden: editor 1920x1080 (full shell)', (tester) async {
+    await at(tester, 1920, 1080);
+    final workspace = WorkspaceProvider();
+    await workspace.openFolder('/tmp/qa_workspace');
+    final editor = EditorProvider();
+    editor.openFile('/tmp/qa_workspace/lib/main.dart');
+    final chat = ChatProvider(ai: settings.ai, onFileWritten: (_) {});
+    chat.currentSession.messages.addAll([
+      ChatMessage(
+          role: ChatRole.user,
+          content: 'Make sure all IDE features are perfectly added!'),
+      ChatMessage(
+          role: ChatRole.assistant,
+          content:
+              'Done! Here are the newest additions:\n- History in the chat header\n- Minimap with syntax colors\n- Quick fix lightbulb\n- Thinking levels Normal/High/Max/Ultra'),
+    ]);
+    final terminal = TerminalProvider();
+    final git = GitProvider(settings.ai);
+    final session = terminal.createSession(cwd: '/tmp/qa_workspace');
+    session.lines
+      ..add(TermLine('user@nexora:~/qa_workspace\$ npm run dev'))
+      ..add(TermLine('VITE v5.4.21  ready in 687 ms'))
+      ..add(TermLine('  Local:   http://localhost:5173/'))
+      ..add(TermLine('  Network: http://192.0.0.4:5173/'))
+      ..add(TermLine('  press h + enter to show help'));
+
+    ui.setAgentRunning(true);
+    ui.setTerminalOpen(true);
+    ui.setView(ViewMode.editor);
+    if (!ui.rightPanelOpen) ui.toggleRightPanel();
+
+    await tester.pumpWidget(shell(
+        workspace: workspace,
+        editor: editor,
+        chat: chat,
+        terminal: terminal,
+        git: git));
+    await tester.pump();
+    // 7s: AgentRunner steps (1500ms interval) all reach "done" — the
+    // prototype screenshot shows the completed state.
+    await tester.pump(const Duration(seconds: 7));
+    await expectLater(find.byType(NexoraApp),
+        matchesGoldenFile('goldens/flutter_editor_1080.png'));
+    ui.setAgentRunning(false);
+    terminal.killAll();
+    ui.setTerminalOpen(false);
+    ui.setView(ViewMode.home);
+  });
+
+  testWidgets('golden: editor 2560x1440 (full shell)', (tester) async {
+    await at(tester, 2560, 1440);
+    final workspace = WorkspaceProvider();
+    await workspace.openFolder('/tmp/qa_workspace');
+    final editor = EditorProvider();
+    editor.openFile('/tmp/qa_workspace/lib/main.dart');
+    final chat = ChatProvider(ai: settings.ai, onFileWritten: (_) {});
+    chat.currentSession.messages.addAll([
+      ChatMessage(
+          role: ChatRole.user,
+          content: 'Make sure all IDE features are perfectly added!'),
+      ChatMessage(
+          role: ChatRole.assistant,
+          content:
+              'Done! Here are the newest additions:\n- History in the chat header\n- Minimap with syntax colors\n- Quick fix lightbulb\n- Thinking levels Normal/High/Max/Ultra'),
+    ]);
+    final terminal = TerminalProvider();
+    final git = GitProvider(settings.ai);
+    final session = terminal.createSession(cwd: '/tmp/qa_workspace');
+    session.lines
+      ..add(TermLine('user@nexora:~/qa_workspace\$ npm run dev'))
+      ..add(TermLine('VITE v5.4.21  ready in 687 ms'))
+      ..add(TermLine('  Local:   http://localhost:5173/'))
+      ..add(TermLine('  Network: http://192.0.0.4:5173/'))
+      ..add(TermLine('  press h + enter to show help'));
+
+    ui.setAgentRunning(true);
+    ui.setTerminalOpen(true);
+    ui.setView(ViewMode.editor);
+    if (!ui.rightPanelOpen) ui.toggleRightPanel();
+
+    await tester.pumpWidget(shell(
+        workspace: workspace,
+        editor: editor,
+        chat: chat,
+        terminal: terminal,
+        git: git));
+    await tester.pump();
+    // 7s: AgentRunner steps (1500ms interval) all reach "done" — the
+    // prototype screenshot shows the completed state.
+    await tester.pump(const Duration(seconds: 7));
+    await expectLater(find.byType(NexoraApp),
+        matchesGoldenFile('goldens/flutter_editor_1440.png'));
+    ui.setAgentRunning(false);
+    terminal.killAll();
+    ui.setTerminalOpen(false);
+    ui.setView(ViewMode.home);
   });
 }
