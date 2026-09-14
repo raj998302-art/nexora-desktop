@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../chat/ai_chat.dart';
 import '../editor/code_editor.dart';
 import '../panels/explorer_panel.dart';
+import '../panels/extension_panel.dart';
 import '../panels/git_panel.dart';
 import '../panels/search_panel.dart';
 import '../providers/ui_provider.dart';
@@ -79,6 +80,8 @@ class EditorWorkspace extends StatelessWidget {
         return const SearchPanel();
       case LeftPanelMode.git:
         return const GitPanel();
+      case LeftPanelMode.extensions:
+        return const ExtensionPanel();
     }
   }
 }

@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
 enum ViewMode { home, editor, settings }
-enum LeftPanelMode { explorer, search, git }
+enum LeftPanelMode { explorer, search, git, extensions }
 
-/// Global UI state: which view is active, panel toggles + SIZES (drag dividers
-/// actually work — audit fix #4), and theme.
+/// Global UI state: which view is active, panel toggles + sizes (drag dividers
+/// work), theme, and the agent-runner floating panel (prototype TopBar
+/// "Agent" button).
+///
+/// Default sizes mirror the Web Prototype exactly:
+/// left panel 256px (w-64), AI chat 350px (w-[350px]), terminal 256px (h-64).
 class UiProvider extends ChangeNotifier {
   ViewMode _view = ViewMode.home;
   LeftPanelMode _leftPanelMode = LeftPanelMode.explorer;
@@ -14,11 +18,14 @@ class UiProvider extends ChangeNotifier {
   bool _rightPanelOpen = true;
   bool _terminalOpen = false;
 
-  double _leftPanelWidth = 250;
-  double _rightPanelWidth = 320;
-  double _terminalHeight = 240;
+  double _leftPanelWidth = 256;
+  double _rightPanelWidth = 350;
+  double _terminalHeight = 256;
 
   ThemeMode _themeMode = ThemeMode.dark;
+
+  /// Floating "Background Task / Agent Running" panel (prototype AgentRunner).
+  bool _agentRunning = false;
 
   ViewMode get view => _view;
   LeftPanelMode get leftPanelMode => _leftPanelMode;
@@ -29,6 +36,7 @@ class UiProvider extends ChangeNotifier {
   double get rightPanelWidth => _rightPanelWidth;
   double get terminalHeight => _terminalHeight;
   ThemeMode get themeMode => _themeMode;
+  bool get agentRunning => _agentRunning;
 
   AppColors get palette =>
       _themeMode == ThemeMode.light ? AppColors.light : AppColors.dark;
@@ -72,6 +80,17 @@ class UiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setAgentRunning(bool running) {
+    if (_agentRunning == running) return;
+    _agentRunning = running;
+    notifyListeners();
+  }
+
+  void toggleAgentRunning() {
+    _agentRunning = !_agentRunning;
+    notifyListeners();
+  }
+
   // ---- Resizable panels (clamped so the editor can never disappear) ----
 
   void setLeftPanelWidth(double w) {
@@ -80,7 +99,7 @@ class UiProvider extends ChangeNotifier {
   }
 
   void setRightPanelWidth(double w) {
-    _rightPanelWidth = w.clamp(240, 640);
+    _rightPanelWidth = w.clamp(260, 640);
     notifyListeners();
   }
 

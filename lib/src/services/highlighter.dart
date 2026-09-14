@@ -274,7 +274,7 @@ class _Styles {
   late final TextStyle number = TextStyle(color: c.number);
   late final TextStyle keyword = TextStyle(color: c.keyword);
   late final TextStyle literal = TextStyle(color: c.success);
-  late final TextStyle klass = TextStyle(color: c.blueLight);
+  late final TextStyle klass = TextStyle(color: c.success); // components #4ec9b0
   late final TextStyle annotation = TextStyle(color: c.warning);
   late final TextStyle plain = TextStyle(color: c.editorForeground);
 
