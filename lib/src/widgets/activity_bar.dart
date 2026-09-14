@@ -1,108 +1,181 @@
+// NEXORA — activity bar: the 48px icon rail on the far left (home, explorer,
+// search, source control, spacer, AI chat, terminal, settings) with a 2px
+// accent indicator on the active item and a change badge on the git icon.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-
+import '../providers/git_provider.dart';
 import '../providers/ui_provider.dart';
-import '../theme/app_colors.dart';
+import 'command_palette.dart';
 
 class ActivityBar extends StatelessWidget {
-  const ActivityBar({Key? key}) : super(key: key);
+  const ActivityBar({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final uiState = context.watch<UiProvider>();
+    final ui = context.watch<UiProvider>();
+    final c = ui.palette;
+    final git = context.watch<GitProvider>();
+
+    final inEditor = ui.view == ViewMode.editor;
+    final panelOpen = inEditor && ui.sidebarOpen;
+    final explorerActive =
+        panelOpen && ui.leftPanelMode == LeftPanelMode.explorer;
+    final searchActive = panelOpen && ui.leftPanelMode == LeftPanelMode.search;
+    final gitActive = panelOpen && ui.leftPanelMode == LeftPanelMode.git;
 
     return Container(
       width: 48,
-      color: AppColors.activityBar,
+      decoration: BoxDecoration(
+        color: c.activityBar,
+        border: Border(right: BorderSide(color: c.border)),
+      ),
       child: Column(
         children: [
-          const SizedBox(height: 12),
           _ActivityIcon(
-            icon: Icons.star,
-            isActive: uiState.view == ViewMode.home,
-            onTap: () => uiState.setView(ViewMode.home),
+            icon: Icons.cottage,
+            tooltip: 'Home',
+            active: ui.view == ViewMode.home,
+            onTap: () => context.read<UiProvider>().setView(ViewMode.home),
           ),
-          const SizedBox(height: 8),
-          Container(height: 1, width: 32, color: AppColors.border),
-          const SizedBox(height: 8),
-          
           _ActivityIcon(
-            icon: Icons.star,
-            isActive: uiState.leftPanelMode == LeftPanelMode.explorer && uiState.view != ViewMode.home,
+            icon: Icons.folder_open,
+            tooltip: 'Explorer',
+            active: explorerActive,
             onTap: () {
-              uiState.setLeftPanelMode(LeftPanelMode.explorer);
-              if (uiState.view != ViewMode.editor) uiState.setView(ViewMode.editor);
+              if (explorerActive) {
+                context.read<UiProvider>().toggleSidebar();
+              } else {
+                NxActions.showLeftPanel(context, LeftPanelMode.explorer);
+              }
             },
           ),
           _ActivityIcon(
-            icon: Icons.star,
-            isActive: uiState.leftPanelMode == LeftPanelMode.search && uiState.view != ViewMode.home,
+            icon: Icons.search,
+            tooltip: 'Search',
+            active: searchActive,
             onTap: () {
-              uiState.setLeftPanelMode(LeftPanelMode.search);
-              if (uiState.view != ViewMode.editor) uiState.setView(ViewMode.editor);
+              if (searchActive) {
+                context.read<UiProvider>().toggleSidebar();
+              } else {
+                NxActions.showLeftPanel(context, LeftPanelMode.search);
+              }
             },
           ),
           _ActivityIcon(
-            icon: Icons.star,
-            isActive: uiState.leftPanelMode == LeftPanelMode.git && uiState.view != ViewMode.home,
+            icon: Icons.account_tree,
+            tooltip: 'Source Control',
+            active: gitActive,
+            badge: git.isRepo && git.status.files.isNotEmpty,
             onTap: () {
-              uiState.setLeftPanelMode(LeftPanelMode.git);
-              if (uiState.view != ViewMode.editor) uiState.setView(ViewMode.editor);
+              if (gitActive) {
+                context.read<UiProvider>().toggleSidebar();
+              } else {
+                NxActions.showLeftPanel(context, LeftPanelMode.git);
+              }
             },
           ),
-          
           const Spacer(),
-          
           _ActivityIcon(
-            icon: Icons.star,
-            isActive: false,
-            onTap: () {},
+            icon: Icons.forum,
+            tooltip: 'AI Chat',
+            active: inEditor && ui.rightPanelOpen,
+            onTap: () => NxActions.toggleChatPanel(context),
           ),
           _ActivityIcon(
-            icon: Icons.star,
-            isActive: uiState.view == ViewMode.settings,
-            onTap: () => uiState.setView(ViewMode.settings),
+            icon: Icons.terminal,
+            tooltip: 'Terminal',
+            active: inEditor && ui.terminalOpen,
+            onTap: () => NxActions.toggleTerminalPanel(context),
           ),
-          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            child: Container(width: 26, height: 1, color: c.borderLight),
+          ),
+          _ActivityIcon(
+            icon: Icons.settings,
+            tooltip: 'Settings',
+            active: ui.view == ViewMode.settings,
+            onTap: () =>
+                context.read<UiProvider>().setView(ViewMode.settings),
+          ),
         ],
       ),
     );
   }
 }
 
-class _ActivityIcon extends StatelessWidget {
+class _ActivityIcon extends StatefulWidget {
   final IconData icon;
-  final bool isActive;
+  final String tooltip;
+  final bool active;
   final VoidCallback onTap;
+  final bool badge;
 
   const _ActivityIcon({
-    Key? key,
     required this.icon,
-    required this.isActive,
+    required this.tooltip,
+    required this.active,
     required this.onTap,
-  }) : super(key: key);
+    this.badge = false,
+  });
+
+  @override
+  State<_ActivityIcon> createState() => _ActivityIconState();
+}
+
+class _ActivityIconState extends State<_ActivityIcon> {
+  bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        height: 48,
-        width: 48,
-        decoration: BoxDecoration(
-          border: Border(
-            left: BorderSide(
-              color: isActive ? AppColors.accentBlue : Colors.transparent,
-              width: 2,
+    final c = context.read<UiProvider>().palette;
+    final color = widget.active || _hover ? c.textPrimary : c.textSecondary;
+    return Tooltip(
+      message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 500),
+      child: Stack(
+        children: [
+          // 2px accent indicator on the left edge when active.
+          if (widget.active)
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: 2,
+                  child: Container(color: c.accent),
+                ),
+              ),
+            ),
+          MouseRegion(
+            onEnter: (event) => setState(() => _hover = true),
+            onExit: (event) => setState(() => _hover = false),
+            child: InkWell(
+              onTap: widget.onTap,
+              hoverColor: c.panelBackground.withValues(alpha: 0.5),
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: Icon(widget.icon, size: 20, color: color),
+              ),
             ),
           ),
-        ),
-        child: Icon(
-          icon,
-          size: 24,
-          color: isActive ? Colors.white : AppColors.textSecondary,
-        ),
+          if (widget.badge)
+            Positioned(
+              top: 9,
+              right: 9,
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: c.accent,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: c.activityBar, width: 1),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

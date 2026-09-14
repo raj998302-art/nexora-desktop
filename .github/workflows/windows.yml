@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,6 +16,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
 
       - name: Initialize Windows Platform
         run: flutter create --platforms windows .
@@ -22,11 +24,35 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test
+
       - name: Build Windows EXE
         run: flutter build windows --release
 
-      - name: Upload Artifact
+      - name: Zip portable release
+        shell: pwsh
+        run: |
+          $src = "build/windows/x64/runner/Release"
+          $dst = "NEXORA-Windows-Portable"
+          if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
+          New-Item -ItemType Directory -Path $dst | Out-Null
+          Copy-Item -Path "$src/*" -Destination $dst -Recurse
+          Copy-Item -Path "README.md" -Destination $dst
+          Compress-Archive -Path $dst -DestinationPath "NEXORA-Windows-Portable.zip" -Force
+          Get-ChildItem $dst
+
+      - name: Upload Release Folder
         uses: actions/upload-artifact@v4
         with:
           name: NEXORA-Windows
           path: build/windows/x64/runner/Release/
+
+      - name: Upload Portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEXORA-Windows-Portable
+          path: NEXORA-Windows-Portable.zip

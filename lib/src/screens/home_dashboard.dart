@@ -1,115 +1,271 @@
+// NEXORA — home dashboard: welcome logo, AI prompt composer, open-folder
+// button, recent folders and a new-chat shortcut.
+
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/chat_provider.dart';
+import '../providers/git_provider.dart';
+import '../providers/ui_provider.dart';
+import '../providers/workspace_provider.dart';
 import '../theme/app_colors.dart';
+import '../widgets/command_palette.dart';
 
-class HomeDashboard extends StatelessWidget {
-  const HomeDashboard({Key? key}) : super(key: key);
+class HomeDashboard extends StatefulWidget {
+  const HomeDashboard({super.key});
+
+  @override
+  State<HomeDashboard> createState() => _HomeDashboardState();
+}
+
+class _HomeDashboardState extends State<HomeDashboard> {
+  final TextEditingController _controller = TextEditingController();
+
+  /// Own focus node for the composer so Enter sends (Shift+Enter = newline)
+  /// without the multiline TextField swallowing the key.
+  late final FocusNode _composerFocus = FocusNode(
+    onKeyEvent: (node, event) {
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.enter &&
+          !HardwareKeyboard.instance.isShiftPressed) {
+        _send();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    },
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _composerFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    final workspace = context.read<WorkspaceProvider>();
+    final ui = context.read<UiProvider>();
+
+    var root = workspace.rootPath;
+    if (root == null || root.isEmpty) {
+      // No workspace yet → pick a folder first, then send.
+      final path = await showOpenFolderDialog(context);
+      if (path == null || path.isEmpty) return;
+      if (!mounted) return;
+      try {
+        await workspace.openFolder(path);
+        context.read<GitProvider>().bindWorkspace(path);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Open folder failed: $e')));
+        }
+        return;
+      }
+      root = workspace.rootPath;
+    }
+    if (!mounted) return;
+    _controller.clear();
+    ui.setView(ViewMode.editor);
+    if (!ui.rightPanelOpen) ui.toggleRightPanel();
+    context.read<ChatProvider>().sendMessage(text, workspaceRoot: root);
+  }
+
+  Future<void> _openPath(String path) async {
+    final workspace = context.read<WorkspaceProvider>();
+    try {
+      await workspace.openFolder(path);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Open folder failed: $e')));
+      }
+      return;
+    }
+    if (!mounted) return;
+    context.read<GitProvider>().bindWorkspace(path);
+    context.read<UiProvider>().setView(ViewMode.editor);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.watch<UiProvider>().palette;
+    final workspace = context.watch<WorkspaceProvider>();
+    final recents = workspace.recents.take(5).toList();
+
     return Container(
-      color: AppColors.background,
+      color: c.background,
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(Icons.star, color: AppColors.blueLight, size: 32),
-                SizedBox(width: 12),
-                Text(
-                  'NEXORA',
-                  style: TextStyle(
-                    fontSize: 32,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 2.0,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 40),
-            
-            // Composer Mock
-            Container(
-              width: 600,
-              decoration: BoxDecoration(
-                color: AppColors.panelBackground,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderLight),
-              ),
-              child: Column(
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: TextField(
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        hintText: 'What do you want to build? (⌘K)',
-                        hintStyle: TextStyle(color: AppColors.textSecondary),
-                        border: InputBorder.none,
-                      ),
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: const BoxDecoration(
-                      border: Border(top: BorderSide(color: AppColors.borderLight)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+          child: LayoutBuilder(
+            builder: (ctx, constraints) {
+              final width =
+                  math.min(560.0, constraints.maxWidth * 0.9).clamp(280.0, 560.0);
+              return SizedBox(
+                width: width,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ---- Logo ----
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Row(
-                          children: [
-                            _ActionChip(icon: Icons.star, label: 'Agent'),
-                            const SizedBox(width: 8),
-                            _ActionChip(icon: Icons.star, label: 'Context'),
-                            const SizedBox(width: 8),
-                            _ActionChip(icon: Icons.star, label: 'Thinking'),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.accentBlue,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Icon(Icons.star, size: 16, color: Colors.white),
-                        )
+                        Icon(Icons.auto_awesome_outlined,
+                            size: 34, color: c.blueLight),
+                        const SizedBox(width: 10),
+                        Text('NEXORA',
+                            style: TextStyle(
+                                color: c.textPrimary,
+                                fontSize: 34,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 3)),
                       ],
                     ),
-                  )
-                ],
-              ),
-            ),
-          ],
+                    const SizedBox(height: 6),
+                    Text('AI-native coding environment',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: c.textSecondary,
+                            fontSize: 13,
+                            letterSpacing: 0.5)),
+                    const SizedBox(height: 36),
+                    // ---- Composer ----
+                    _composer(c),
+                    const SizedBox(height: 22),
+                    // ---- Open folder ----
+                    Center(
+                      child: OutlinedButton.icon(
+                        onPressed: () => NxActions.openFolder(context),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: c.borderLight),
+                          foregroundColor: c.textPrimary,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 11),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: Icon(Icons.folder_open,
+                            size: 15, color: c.textPrimary),
+                        label: Text('Open a folder',
+                            style: TextStyle(
+                                color: c.textPrimary, fontSize: 12.5)),
+                      ),
+                    ),
+                    // ---- Recents ----
+                    if (recents.isNotEmpty) ...[
+                      const SizedBox(height: 30),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6, bottom: 6),
+                        child: Text('RECENT FOLDERS',
+                            style: TextStyle(
+                                color: c.textSecondary,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1)),
+                      ),
+                      for (final r in recents)
+                        InkWell(
+                          onTap: () => _openPath(r.path),
+                          borderRadius: BorderRadius.circular(6),
+                          hoverColor: c.panelBackground,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 5),
+                            child: Row(
+                              children: [
+                                Icon(Icons.folder,
+                                    size: 14, color: c.blueLight),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    r.path,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        color: c.textPrimary,
+                                        fontSize: 12,
+                                        fontFamily: 'monospace'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                    const SizedBox(height: 26),
+                    Center(
+                      child: TextButton(
+                        onPressed: () =>
+                            context.read<ChatProvider>().newSession(),
+                        child: Text('New chat',
+                            style:
+                                TextStyle(color: c.accent, fontSize: 12)),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
   }
-}
 
-class _ActionChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _ActionChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _composer(AppColors c) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.borderLight),
-        borderRadius: BorderRadius.circular(4),
+        color: c.panelBackground,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: c.borderLight),
       ),
+      padding: const EdgeInsets.all(6),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Icon(icon, size: 12, color: AppColors.textSecondary),
-          const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              focusNode: _composerFocus,
+              maxLines: 3,
+              minLines: 1,
+              style: TextStyle(color: c.textPrimary, fontSize: 13.5),
+              decoration: InputDecoration(
+                hintText: 'Ask NEXORA to build something… (Ctrl+K)',
+                hintStyle:
+                    TextStyle(color: c.textSecondary, fontSize: 13),
+                border: InputBorder.none,
+                isCollapsed: false,
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 10),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2, right: 2),
+            child: Material(
+              color: c.accent,
+              borderRadius: BorderRadius.circular(7),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(7),
+                hoverColor: c.textOnAccent.withValues(alpha: 0.15),
+                onTap: () => _send(),
+                child: SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: Icon(Icons.arrow_upward,
+                      size: 17, color: c.textOnAccent),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

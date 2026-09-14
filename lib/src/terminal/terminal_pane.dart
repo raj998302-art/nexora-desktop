@@ -1,107 +1,317 @@
+// NEXORA — embedded terminal pane. Real shell sessions (spawned by
+// TerminalProvider) rendered as a scrollback of lines plus a per-session
+// input row. IMPORTANT: the parent workspace owns this pane's height (it is
+// wrapped in a SizedBox driven by UiProvider.terminalHeight) — this widget
+// only fills the box it is given.
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/terminal_provider.dart';
+import '../providers/ui_provider.dart';
+import '../providers/workspace_provider.dart';
 import '../theme/app_colors.dart';
 
-class TerminalPane extends StatelessWidget {
-  const TerminalPane({Key? key}) : super(key: key);
+/// The bottom terminal panel. Fills the height provided by the parent.
+class TerminalPane extends StatefulWidget {
+  const TerminalPane({super.key});
+
+  @override
+  State<TerminalPane> createState() => _TerminalPaneState();
+}
+
+class _TerminalPaneState extends State<TerminalPane> {
+  late final TerminalProvider _term;
+  final ScrollController _scroll = ScrollController();
+  final FocusNode _inputFocus = FocusNode();
+
+  /// One input controller per session id, so typed-but-unsent text survives
+  /// switching between terminal tabs.
+  final Map<String, TextEditingController> _inputs = {};
+  String? _lastActiveId;
+
+  @override
+  void initState() {
+    super.initState();
+    _term = context.read<TerminalProvider>();
+    _term.addListener(_onTermChanged);
+    _lastActiveId = _term.active?.id;
+  }
+
+  @override
+  void dispose() {
+    _term.removeListener(_onTermChanged);
+    _inputFocus.dispose();
+    _scroll.dispose();
+    for (final controller in _inputs.values) {
+      controller.dispose();
+    }
+    _inputs.clear();
+    super.dispose();
+  }
+
+  void _onTermChanged() {
+    final active = _term.active;
+    final switched = active?.id != _lastActiveId;
+    _lastActiveId = active?.id;
+
+    if (switched) {
+      // Focus follows the newly active session's input line.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _inputFocus.requestFocus();
+      });
+    }
+
+    // Stick to the bottom while output streams in — unless the user has
+    // scrolled up to read. Metrics are read pre-layout, i.e. against the
+    // extent before the new lines land.
+    final wasNearBottom = !_scroll.hasClients ||
+        (_scroll.position.maxScrollExtent - _scroll.position.pixels) < 80;
+    if (switched || wasNearBottom) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scroll.hasClients) return;
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      });
+    }
+  }
+
+  TextEditingController _controllerFor(TerminalSession session) =>
+      _inputs.putIfAbsent(session.id, TextEditingController.new);
+
+  void _createSession() {
+    _term.createSession(cwd: context.read<WorkspaceProvider>().rootPath);
+  }
+
+  // ----------------------------------------------------------------- layout
 
   @override
   Widget build(BuildContext context) {
+    final term = context.watch<TerminalProvider>();
+    final c = context.watch<UiProvider>().palette;
+    final active = term.active;
+
     return Container(
-      height: 250,
-      decoration: const BoxDecoration(
-        color: AppColors.editorBackground,
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
+      color: c.background,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Terminal Header
-          Container(
-            height: 35,
-            color: AppColors.activityBar,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    _buildTab('PROBLEMS', false),
-                    _buildTab('OUTPUT', false),
-                    _buildTab('DEBUG CONSOLE', false),
-                    _buildTab('TERMINAL', true),
-                    _buildTab('PORTS', false),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.panelBackground,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: AppColors.borderLight),
-                      ),
-                      child: Row(
-                        children: const [
-                          Icon(Icons.star, size: 12, color: AppColors.textPrimary),
-                          SizedBox(width: 4),
-                          Text('bash', style: TextStyle(color: AppColors.textPrimary, fontSize: 11)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.star, size: 14, color: AppColors.textSecondary),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.star, size: 14, color: AppColors.textSecondary),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.star, size: 14, color: AppColors.textSecondary),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.star, size: 14, color: AppColors.textSecondary),
-                  ],
-                )
-              ],
-            ),
-          ),
-          // Terminal Output
+          _buildHeader(term, c),
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    RichText(
-                      text: const TextSpan(
-                        style: TextStyle(fontFamily: 'monospace', fontSize: 13, height: 1.5),
-                        children: [
-                          TextSpan(text: 'user@nexora', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
-                          TextSpan(text: ':', style: TextStyle(color: Colors.white)),
-                          TextSpan(text: '~/nexora_desktop', style: TextStyle(color: AppColors.blueLight, fontWeight: FontWeight.bold)),
-                          TextSpan(text: '\$ ', style: TextStyle(color: Colors.white)),
-                          TextSpan(text: 'flutter build windows --release\n', style: TextStyle(color: Colors.white)),
-                        ],
-                      ),
+            child: (term.sessions.isEmpty || active == null)
+                ? Center(
+                    child: Text(
+                      'No terminal — create one (+)',
+                      style:
+                          TextStyle(fontSize: 11, color: c.textSecondary),
                     ),
-                    const Text('Building Windows application...', style: TextStyle(color: AppColors.textSecondary, fontFamily: 'monospace', fontSize: 13, height: 1.5)),
-                  ],
-                ),
-              ),
-            ),
-          )
+                  )
+                : Column(
+                    children: [
+                      Expanded(child: _buildOutput(active, c)),
+                      _buildInput(active, c),
+                    ],
+                  ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTab(String title, bool isActive) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 16),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildHeader(TerminalProvider term, AppColors c) {
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: c.activityBar,
+        border: Border(bottom: BorderSide(color: c.border)),
+      ),
+      child: Row(
         children: [
-          Text(title, style: TextStyle(color: isActive ? Colors.white : AppColors.textSecondary, fontSize: 11, fontWeight: isActive ? FontWeight.bold : FontWeight.normal)),
-          if (isActive) Container(height: 2, width: 40, color: AppColors.accentBlue, margin: const EdgeInsets.only(top: 4)),
+          Text(
+            'TERMINAL',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1,
+              color: c.textPrimary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (var i = 0;
+                      i < term.sessions.length && i < 5;
+                      i++)
+                    _buildSessionChip(term, i, c),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _headerButton(
+            c,
+            Icons.add,
+            'New terminal session',
+            _createSession,
+          ),
+          _headerButton(
+            c,
+            Icons.power_settings_new,
+            'Kill active process',
+            () => term.active?.kill(),
+            color: c.error,
+          ),
+          _headerButton(
+            c,
+            Icons.expand_more,
+            'Hide terminal panel',
+            () => context.read<UiProvider>().setTerminalOpen(false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _headerButton(
+    AppColors c,
+    IconData icon,
+    String tooltip,
+    VoidCallback onPressed, {
+    Color? color,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      icon: Icon(icon, size: 14, color: color ?? c.textSecondary),
+      onPressed: onPressed,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+      padding: EdgeInsets.zero,
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  Widget _buildSessionChip(TerminalProvider term, int index, AppColors c) {
+    final session = term.sessions[index];
+    final isActive = index == term.activeIndex;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => term.setActive(index),
+          child: Container(
+            height: 24,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: isActive ? c.panelBackground : null,
+              borderRadius: BorderRadius.circular(4),
+              border: isActive ? Border.all(color: c.borderLight) : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  session.title,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isActive ? c.textPrimary : c.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Tooltip(
+                  message: 'Close session',
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => term.closeSession(index),
+                    child: Icon(Icons.close, size: 10, color: c.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOutput(TerminalSession session, AppColors c) {
+    return GestureDetector(
+      // Clicking the scrollback moves focus to the input line, like a real
+      // terminal.
+      behavior: HitTestBehavior.opaque,
+      onTap: _inputFocus.requestFocus,
+      child: ListView.builder(
+        controller: _scroll,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: session.lines.length,
+        itemBuilder: (context, index) {
+          final line = session.lines[index];
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+            child: Text(
+              line.text,
+              softWrap: true,
+              overflow: TextOverflow.clip,
+              style: TextStyle(
+                fontSize: 12,
+                fontFamily: 'monospace',
+                height: 1.4,
+                color: line.isStderr ? c.error : c.textPrimary,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildInput(TerminalSession session, AppColors c) {
+    final controller = _controllerFor(session);
+    return Container(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: c.background,
+        border: Border(top: BorderSide(color: c.border)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '\$',
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'monospace',
+              color: c.success,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              focusNode: _inputFocus,
+              autofocus: true,
+              cursorColor: c.accent,
+              style: TextStyle(
+                fontSize: 12,
+                fontFamily: 'monospace',
+                color: c.textPrimary,
+              ),
+              decoration: const InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 6),
+              ),
+              onSubmitted: (value) {
+                _term.sendInput(value);
+                controller.clear();
+                _inputFocus.requestFocus();
+              },
+            ),
+          ),
         ],
       ),
     );
