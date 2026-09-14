@@ -358,7 +358,7 @@ Future<String?> showOpenFolderDialog(BuildContext context) {
 InputDecoration _fieldDecoration(AppColors c, {String? hint}) => InputDecoration(
       hintText: hint,
       hintStyle: TextStyle(
-          color: c.textSecondary, fontSize: 12.5, fontFamily: 'monospace'),
+          color: c.textSecondary, fontSize: 12.5, fontFamily: 'FiraCode'),
       filled: true,
       fillColor: c.background,
       isDense: true,
@@ -434,7 +434,7 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
               style: TextStyle(
                   color: c.textPrimary,
                   fontSize: 12.5,
-                  fontFamily: 'monospace'),
+                  fontFamily: 'FiraCode'),
               decoration: _fieldDecoration(c, hint: '/home/you/project'),
               onSubmitted: (_) => _open(),
             ),
@@ -531,7 +531,7 @@ class _SaveAsDialogState extends State<_SaveAsDialog> {
               style: TextStyle(
                   color: c.textPrimary,
                   fontSize: 12.5,
-                  fontFamily: 'monospace'),
+                  fontFamily: 'FiraCode'),
               decoration: _fieldDecoration(c, hint: 'path/to/file.dart'),
               onSubmitted: (_) => _save(),
             ),
@@ -789,7 +789,7 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
                 style: TextStyle(
                     color: c.textSecondary,
                     fontSize: 11,
-                    fontFamily: 'monospace'),
+                    fontFamily: 'FiraCode'),
               ),
           ],
         ),

@@ -21,6 +21,12 @@ import '../theme/app_colors.dart';
 /// [SyntaxHighlighter.highlight]), synced line-number gutter, minimap, ghost
 /// text (AI tab-completion), auto-indent, Tab-insert, line comments, Ctrl+L
 /// selection→chat context and reveal-to-line for search results.
+///
+/// Visual language ported from the Web Prototype: FiraCode 13px / 1.6 line
+/// height, blue-500 active tab accent, 36px tab bar with file-type letter
+/// chips, 80px gutter (16/24 paddings, right border) with hover + current
+/// line numbers, current-line highlight behind the caret line, 64px minimap
+/// with token-colored bars and a viewport slider.
 class CodeEditor extends StatefulWidget {
   const CodeEditor({Key? key}) : super(key: key);
 
@@ -89,9 +95,9 @@ class _HighlightingController extends TextEditingController {
 
 class _CodeEditorState extends State<CodeEditor> {
   static const double codeFontSize = 13;
-  static const double lineHeight = codeFontSize * 1.5; // 19.5 — matches strut.
-  static const double gutterWidth = 48;
-  static const double minimapWidth = 60;
+  static const double lineHeight = codeFontSize * 1.6; // 20.8 — matches strut.
+  static const double gutterWidth = 80; // 16 pl + numbers + 24 pr + border.
+  static const double minimapWidth = 64;
   static const double codeLeftPadding = 16;
   static double? _cachedCharWidth;
 
@@ -505,12 +511,14 @@ class _CodeEditorState extends State<CodeEditor> {
 
   // ------------------------------------------------------------ metrics
 
+  /// Advance width of one FiraCode glyph at the editor's font size — used to
+  /// place the inline ghost-text hint after the caret.
   static double get _charWidth {
     if (_cachedCharWidth != null) return _cachedCharWidth!;
     final tp = TextPainter(
       text: const TextSpan(
           text: 'MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM',
-          style: TextStyle(fontFamily: 'monospace', fontSize: codeFontSize)),
+          style: TextStyle(fontFamily: 'FiraCode', fontSize: codeFontSize)),
       textDirection: TextDirection.ltr,
     )..layout();
     _cachedCharWidth = tp.width / 50;
@@ -573,7 +581,7 @@ class _CodeEditorState extends State<CodeEditor> {
   Widget _buildTabBarRow(EditorProvider editor, AppColors c) {
     final tabs = editor.tabs;
     return Container(
-      height: 35,
+      height: 36,
       color: c.activityBar,
       child: Row(
         children: [
@@ -594,15 +602,7 @@ class _CodeEditorState extends State<CodeEditor> {
               ),
             ),
           ),
-          SizedBox(
-            width: 30,
-            child: IconButton(
-              tooltip: 'New file (untitled)',
-              visualDensity: VisualDensity.compact,
-              icon: Icon(Icons.add, size: 16, color: c.textSecondary),
-              onPressed: () => editor.openUntitled(),
-            ),
-          ),
+          _AddTabButton(palette: c, onPressed: () => editor.openUntitled()),
         ],
       ),
     );
@@ -662,10 +662,7 @@ class _CodeEditorState extends State<CodeEditor> {
       }
       children.add(Text(
         segments[i],
-        style: TextStyle(
-          color: i == segments.length - 1 ? c.textPrimary : c.textSecondary,
-          fontSize: 12,
-        ),
+        style: TextStyle(color: c.textSecondary, fontSize: 12),
       ));
     }
     return Container(
@@ -720,37 +717,49 @@ class _CodeEditorState extends State<CodeEditor> {
                   palette: c,
                 ),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                      left: codeLeftPadding, right: codeLeftPadding),
-                  child: Focus(
-                    onKeyEvent: _onKey,
-                    child: _CodeField(
-                      controller: view.controller,
-                      focusNode: view.focus,
-                      scrollController: view.scroll,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: codeFontSize,
-                        height: 1.5,
-                        color: c.editorForeground,
-                      ),
-                      strutStyle: const StrutStyle(
-                        fontFamily: 'monospace',
-                        fontSize: codeFontSize,
-                        height: 1.5,
-                        forceStrutHeight: true,
-                      ),
-                      cursorColor: c.accent,
-                      selectionColor: c.selection,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Current-line highlight behind the caret line.
+                    _CurrentLineHighlight(
+                      scroll: view.scroll,
+                      line: tab.cursorLine,
+                      palette: c,
                     ),
-                  ),
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          left: codeLeftPadding, right: codeLeftPadding),
+                      child: Focus(
+                        onKeyEvent: _onKey,
+                        child: _CodeField(
+                          controller: view.controller,
+                          focusNode: view.focus,
+                          scrollController: view.scroll,
+                          style: TextStyle(
+                            fontFamily: 'FiraCode',
+                            fontSize: codeFontSize,
+                            height: 1.6,
+                            color: c.textEditor,
+                          ),
+                          strutStyle: const StrutStyle(
+                            fontFamily: 'FiraCode',
+                            fontSize: codeFontSize,
+                            height: 1.6,
+                            forceStrutHeight: true,
+                          ),
+                          cursorColor: c.accent,
+                          selectionColor: c.selection,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               if (settings.s.showMinimap)
                 _Minimap(
                   lines: lines,
                   currentLine: tab.cursorLine + 1,
+                  scroll: view.scroll,
                   palette: c,
                 ),
             ],
@@ -774,7 +783,7 @@ class _CodeEditorState extends State<CodeEditor> {
   }
 }
 
-/// Monospace, syntax-highlighted editing surface.
+/// FiraCode, syntax-highlighted editing surface.
 class _CodeField extends EditableText {
   _CodeField({
     required TextEditingController controller,
@@ -802,9 +811,54 @@ class _CodeField extends EditableText {
         );
 }
 
+/// Full-width highlight painted behind the caret's line, tracked against the
+/// editor's scroll offset (same math as the gutter / ghost overlay).
+class _CurrentLineHighlight extends StatelessWidget {
+  final ScrollController scroll;
+  final int line; // 0-based
+  final AppColors palette;
+
+  const _CurrentLineHighlight({
+    required this.scroll,
+    required this.line,
+    required this.palette,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = palette;
+    return LayoutBuilder(builder: (context, constraints) {
+      final height = constraints.maxHeight;
+      return AnimatedBuilder(
+        animation: scroll,
+        builder: (context, _) {
+          final offset = scroll.hasClients ? scroll.offset : 0.0;
+          final y = line * _CodeEditorState.lineHeight - offset;
+          if (y > height || y + _CodeEditorState.lineHeight < 0) {
+            return const SizedBox.shrink();
+          }
+          return Align(
+            alignment: Alignment.topLeft,
+            child: Transform.translate(
+              offset: Offset(0, y),
+              child: Container(
+                width: double.infinity,
+                height: _CodeEditorState.lineHeight,
+                color: c.inputBackground.withValues(alpha: 0.25),
+              ),
+            ),
+          );
+        },
+      );
+    });
+  }
+}
+
 /// Line-number gutter, kept in sync with the editor's internal scroll by
-/// translating its content by the live scroll offset.
-class _LineGutter extends StatelessWidget {
+/// translating its content by the live scroll offset. Prototype styling:
+/// FiraCode 12px numbers, #858585 at 50% opacity, 16px left / 24px right
+/// padding, right border, hovered + current lines at full #cccccc.
+class _LineGutter extends StatefulWidget {
   final ScrollController scroll;
   final int lineCount;
   final int currentLine; // 1-based
@@ -818,119 +872,95 @@ class _LineGutter extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: _CodeEditorState.gutterWidth,
-      child: ClipRect(
-        child: Listener(
-          // Forward wheel events so scrolling over the gutter scrolls code.
-          onPointerSignal: (event) {
-            if (event is PointerScrollEvent &&
-                scroll.hasClients &&
-                scroll.position.maxScrollExtent > 0) {
-              final pos = scroll.position;
-              final target = (scroll.offset + event.scrollDelta.dy)
-                  .clamp(pos.minScrollExtent, pos.maxScrollExtent);
-              pos.jumpTo(target);
-            }
-          },
-          child: AnimatedBuilder(
-            animation: scroll,
-            builder: (context, _) {
-              final offset = scroll.hasClients ? scroll.offset : 0.0;
-              return Transform.translate(
-                offset: Offset(0, -offset),
-                // OverflowBox gives the number column unbounded height so a
-                // long file never trips RenderFlex overflow; ClipRect trims.
-                child: OverflowBox(
-                  alignment: Alignment.topLeft,
-                  minWidth: _CodeEditorState.gutterWidth,
-                  maxWidth: _CodeEditorState.gutterWidth,
-                  minHeight: 0,
-                  maxHeight: double.infinity,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      for (var i = 1; i <= lineCount; i++)
-                        SizedBox(
-                          height: _CodeEditorState.lineHeight,
-                          width: _CodeEditorState.gutterWidth,
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Text(
-                              '$i',
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: 12,
-                                height: 1.625, // 12 * 1.625 == 19.5
-                                color: i == currentLine
-                                    ? palette.textPrimary
-                                    : palette.textSecondary,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
+  State<_LineGutter> createState() => _LineGutterState();
 }
 
-/// Cheap minimap: one 2px row per source line, width proportional to line
-/// length, capped at 300 rows, non-interactive.
-class _Minimap extends StatelessWidget {
-  final List<String> lines;
-  final int currentLine; // 1-based
-  final AppColors palette;
-
-  const _Minimap({
-    required this.lines,
-    required this.currentLine,
-    required this.palette,
-  });
+class _LineGutterState extends State<_LineGutter> {
+  /// Last hover y within the gutter box (null = not hovering). Recomputed on
+  /// every scroll tick so the hover highlight tracks content, not the box.
+  double? _hoverY;
 
   @override
   Widget build(BuildContext context) {
-    final count = lines.length < 300 ? lines.length : 300;
-    return Container(
-      width: _CodeEditorState.minimapWidth,
-      decoration: BoxDecoration(
-        border: Border(left: BorderSide(color: palette.borderLight)),
-      ),
-      child: ClipRect(
-        child: IgnorePointer(
-          child: Opacity(
-            opacity: 0.7,
-            child: SingleChildScrollView(
-              physics: const NeverScrollableScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.only(top: 2, left: 3),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var i = 0; i < count; i++)
-                      Container(
-                        height: 2,
-                        margin: const EdgeInsets.only(bottom: 1),
-                        width: (lines[i].length * 0.8)
-                            .clamp(2.0, _CodeEditorState.minimapWidth - 8)
-                            .toDouble(),
-                        color: i + 1 == currentLine
-                            ? palette.blueLight.withValues(alpha: 0.35)
-                            : palette.textPrimary.withValues(alpha: 0.35),
-                      ),
-                  ],
-                ),
-              ),
+    final c = widget.palette;
+    return MouseRegion(
+      onHover: (event) => setState(() => _hoverY = event.localPosition.dy),
+      onExit: (_) {
+        if (_hoverY != null) setState(() => _hoverY = null);
+      },
+      child: Container(
+        width: _CodeEditorState.gutterWidth,
+        // foregroundDecoration keeps the border from deflating the child
+        // constraints (rows are sized to the full gutter width).
+        foregroundDecoration: BoxDecoration(
+          border: Border(right: BorderSide(color: c.border)),
+        ),
+        child: ClipRect(
+          child: Listener(
+            // Forward wheel events so scrolling over the gutter scrolls code.
+            onPointerSignal: (event) {
+              if (event is PointerScrollEvent &&
+                  widget.scroll.hasClients &&
+                  widget.scroll.position.maxScrollExtent > 0) {
+                final pos = widget.scroll.position;
+                final target = (widget.scroll.offset + event.scrollDelta.dy)
+                    .clamp(pos.minScrollExtent, pos.maxScrollExtent);
+                pos.jumpTo(target);
+              }
+            },
+            child: AnimatedBuilder(
+              animation: widget.scroll,
+              builder: (context, _) {
+                final offset =
+                    widget.scroll.hasClients ? widget.scroll.offset : 0.0;
+                // Map the hover position to a (1-based) line each frame so it
+                // follows the content while scrolling.
+                int? hoverLine;
+                if (_hoverY != null) {
+                  final ln = ((_hoverY! + offset) /
+                          _CodeEditorState.lineHeight)
+                      .floor() + 1;
+                  if (ln >= 1 && ln <= widget.lineCount) hoverLine = ln;
+                }
+                return Transform.translate(
+                  offset: Offset(0, -offset),
+                  // OverflowBox gives the number column unbounded height so a
+                  // long file never trips RenderFlex overflow; ClipRect trims.
+                  child: OverflowBox(
+                    alignment: Alignment.topLeft,
+                    minWidth: _CodeEditorState.gutterWidth,
+                    maxWidth: _CodeEditorState.gutterWidth,
+                    minHeight: 0,
+                    maxHeight: double.infinity,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        for (var i = 1; i <= widget.lineCount; i++)
+                          SizedBox(
+                            height: _CodeEditorState.lineHeight,
+                            width: _CodeEditorState.gutterWidth,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 16, right: 24),
+                              child: Text(
+                                '$i',
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontFamily: 'FiraCode',
+                                  fontSize: 12,
+                                  height: _CodeEditorState.lineHeight / 12,
+                                  color: (i == widget.currentLine || i == hoverLine)
+                                      ? c.textPrimary
+                                      : c.textSecondary.withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -938,6 +968,141 @@ class _Minimap extends StatelessWidget {
     );
   }
 }
+
+/// Minimap: one 2px row (4px pitch) per source line, width proportional to
+/// line length (capped at 48px), colored by the line's dominant token at 20%
+/// opacity — plus a viewport slider block on top that tracks the editor
+/// scroll (32px, #3c3c3c at 30% / 50% on hover).
+class _Minimap extends StatefulWidget {
+  final List<String> lines;
+  final int currentLine; // 1-based
+  final ScrollController scroll;
+  final AppColors palette;
+
+  const _Minimap({
+    required this.lines,
+    required this.currentLine,
+    required this.scroll,
+    required this.palette,
+  });
+
+  @override
+  State<_Minimap> createState() => _MinimapState();
+}
+
+class _MinimapState extends State<_Minimap> {
+  bool _sliderHover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.palette;
+    final count = widget.lines.length < 300 ? widget.lines.length : 300;
+    return Container(
+      width: _CodeEditorState.minimapWidth,
+      decoration: BoxDecoration(
+        border: Border(
+            left: BorderSide(color: c.border.withValues(alpha: 0.5))),
+      ),
+      child: ClipRect(
+        child: LayoutBuilder(builder: (context, constraints) {
+          final height = constraints.maxHeight;
+          return Stack(
+            children: [
+              // Mini bars (non-interactive).
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: SingleChildScrollView(
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4, left: 4),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (var i = 0; i < count; i++)
+                            Opacity(
+                              opacity: i + 1 == widget.currentLine ? 0.9 : 0.2,
+                              child: Container(
+                                height: 2,
+                                margin: const EdgeInsets.only(bottom: 2),
+                                width: (widget.lines[i].length * 0.8)
+                                    .clamp(2.0, 48.0)
+                                    .toDouble(),
+                                color: _minimapRowColor(widget.lines[i], c),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Viewport slider.
+              AnimatedBuilder(
+                animation: widget.scroll,
+                builder: (context, _) {
+                  var top = 0.0;
+                  if (widget.scroll.hasClients &&
+                      widget.scroll.position.hasContentDimensions) {
+                    final maxExtent = widget.scroll.position.maxScrollExtent;
+                    if (maxExtent > 0) {
+                      final range = height > 32 ? height - 32 : 0.0;
+                      top = (widget.scroll.offset / maxExtent) * range;
+                    }
+                  }
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Transform.translate(
+                      offset: Offset(0, top),
+                      child: MouseRegion(
+                        onEnter: (_) => setState(() => _sliderHover = true),
+                        onExit: (_) => setState(() => _sliderHover = false),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: _CodeEditorState.minimapWidth - 8,
+                          height: 32,
+                          margin: const EdgeInsets.only(left: 4),
+                          color: c.hoverBackground2
+                              .withValues(alpha: _sliderHover ? 0.5 : 0.3),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+}
+
+/// Rough dominant-token classifier for one minimap bar (comment → green,
+/// keyword → purple, string → orange, Capitalized type → blue, else plain).
+Color _minimapRowColor(String raw, AppColors c) {
+  final line = raw.trim();
+  if (line.isEmpty) return c.textSecondary;
+  if (line.startsWith('//') ||
+      line.startsWith('/*') ||
+      line.startsWith('*') ||
+      line.startsWith('#')) {
+    return c.comment;
+  }
+  if (_minimapKeywordRe.hasMatch(line)) return c.keyword;
+  if (line.contains("'") || line.contains('"') || line.contains('`')) {
+    return c.string;
+  }
+  if (_minimapTypeRe.hasMatch(line)) return c.typeKeyword;
+  return c.textSecondary;
+}
+
+final RegExp _minimapKeywordRe = RegExp(
+    r'\b(import|export|return|class|def|function|const|var|let|if|else|for|'
+    r'while|switch|case|new|extends|implements|with|static|final|void|async|'
+    r'await|try|catch|throw|struct|impl|fn|pub|use|mod|enum|interface|package|'
+    r'select|insert|update|delete|from|as)\b');
+final RegExp _minimapTypeRe = RegExp(r'\b[A-Z][A-Za-z0-9_]*\b');
 
 /// Ghost-text overlay: the inline AI completion rendered after the caret, or
 /// a "Tab to accept" pill when the inline hint does not fit.
@@ -1001,9 +1166,9 @@ class _GhostOverlay extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.clip,
                       style: TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: 'FiraCode',
                         fontSize: _CodeEditorState.codeFontSize,
-                        height: 1.5,
+                        height: 1.6,
                         color: palette.textSecondary.withValues(alpha: 0.55),
                       ),
                     ),
@@ -1024,7 +1189,7 @@ class _GhostOverlay extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: palette.panelBackground,
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: palette.border),
+                      border: Border.all(color: palette.borderLight),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1033,7 +1198,7 @@ class _GhostOverlay extends StatelessWidget {
                             style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: palette.accent)),
+                                color: palette.blue400)),
                         const SizedBox(width: 6),
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 240),
@@ -1058,7 +1223,40 @@ class _GhostOverlay extends StatelessWidget {
   }
 }
 
-/// A single editor tab chip: dirty dot instead of a close icon when unsaved.
+/// File-type letter chip shown in each tab (prototype: 'ts', 'tsx', 'dart'…).
+/// Derived from the file name's extension, falling back to the language id
+/// for extension-less buffers (untitled tabs).
+String _fileTypeLetters(EditorTab tab) {
+  final name = tab.name;
+  final dot = name.lastIndexOf('.');
+  if (dot > 0 && dot < name.length - 1) {
+    return name.substring(dot + 1).toLowerCase();
+  }
+  switch (tab.language) {
+    case 'python':
+      return 'py';
+    case 'javascript':
+      return 'js';
+    case 'typescript':
+      return 'ts';
+    case 'markdown':
+      return 'md';
+    case 'plaintext':
+      return 'txt';
+    case 'shell':
+      return 'sh';
+    default:
+      return tab.language.isEmpty
+          ? 'txt'
+          : (tab.language.length <= 4
+              ? tab.language
+              : tab.language.substring(0, 4));
+  }
+}
+
+/// A single editor tab (prototype): file-type letter chip + name, right
+/// border, active = editor background + 2px blue-500 top accent, close icon
+/// fades in on hover (always visible when active), dirty = 6px yellow dot.
 class _TabChip extends StatefulWidget {
   final EditorTab tab;
   final bool active;
@@ -1085,35 +1283,48 @@ class _TabChipState extends State<_TabChip> {
   Widget build(BuildContext context) {
     final c = widget.palette;
     final active = widget.active;
+    final hoverFg =
+        c.brightness == Brightness.dark ? c.textOnAccent : c.textPrimary;
     final bg = active
         ? c.editorBackground
-        : (_hover ? c.borderLight.withValues(alpha: 0.25) : Colors.transparent);
+        : (_hover ? c.editorBackground : Colors.transparent);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onSelect,
-        child: Container(
-          height: 35,
-          padding: const EdgeInsets.only(left: 12, right: 4),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 36,
+          padding: const EdgeInsets.only(left: 12, right: 6),
           decoration: BoxDecoration(
             color: bg,
             border: Border(
               top: BorderSide(
                 width: 2,
-                color: active ? c.accent : Colors.transparent,
+                color: active ? c.blue500 : Colors.transparent,
               ),
+              right: BorderSide(color: c.border),
             ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
+                _fileTypeLetters(widget.tab),
+                style: TextStyle(
+                  fontFamily: 'FiraCode',
+                  fontSize: 11,
+                  color: c.blueLight,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
                 widget.tab.name,
                 style: TextStyle(
-                  fontSize: 12,
-                  color: active ? c.textPrimary : c.textSecondary,
+                  fontSize: 13,
+                  color: active ? hoverFg : c.textSecondary,
                 ),
               ),
               const SizedBox(width: 6),
@@ -1122,20 +1333,71 @@ class _TabChipState extends State<_TabChip> {
                   width: 6,
                   height: 6,
                   decoration:
-                      BoxDecoration(color: c.error, shape: BoxShape.circle),
+                      BoxDecoration(color: c.yellow400, shape: BoxShape.circle),
                 )
               else
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: widget.onClose,
-                    child: Padding(
-                      padding: const EdgeInsets.all(3),
-                      child: Icon(Icons.close, size: 14, color: c.textSecondary),
+                AnimatedOpacity(
+                  duration: const Duration(milliseconds: 150),
+                  opacity: active || _hover ? 1.0 : 0.0,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: widget.onClose,
+                      child: Padding(
+                        padding: const EdgeInsets.all(3),
+                        child: Icon(Icons.close,
+                            size: 14,
+                            color: active || _hover
+                                ? c.textPrimary
+                                : c.textSecondary),
+                      ),
                     ),
                   ),
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The trailing '+' new-tab button (14px icon, secondary → white on hover).
+class _AddTabButton extends StatefulWidget {
+  final AppColors palette;
+  final VoidCallback onPressed;
+
+  const _AddTabButton({
+    required this.palette,
+    required this.onPressed,
+  });
+
+  @override
+  State<_AddTabButton> createState() => _AddTabButtonState();
+}
+
+class _AddTabButtonState extends State<_AddTabButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.palette;
+    final hoverFg =
+        c.brightness == Brightness.dark ? c.textOnAccent : c.textPrimary;
+    return Tooltip(
+      message: 'New file (untitled)',
+      waitDuration: const Duration(milliseconds: 300),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: widget.onPressed,
+          child: SizedBox(
+            width: 28,
+            height: 36,
+            child: Icon(Icons.add, size: 14,
+                color: _hover ? hoverFg : c.textSecondary),
           ),
         ),
       ),

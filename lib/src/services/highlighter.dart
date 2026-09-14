@@ -31,7 +31,7 @@ class SyntaxHighlighter {
   static TextSpan highlight(String code, String language, AppColors c,
       {double fontSize = 13}) {
     final root = TextStyle(
-      fontFamily: 'monospace',
+      fontFamily: 'FiraCode',
       fontSize: fontSize,
       height: 1.5,
       color: c.editorForeground,

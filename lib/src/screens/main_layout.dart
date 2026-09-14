@@ -1,6 +1,9 @@
-// NEXORA — root shell: TopBar + (ActivityBar | view) + StatusBar, wrapped in
-// the global keyboard shortcut map (CallbackShortcuts + an autofocus Focus
-// node so bindings work when nothing else has focus).
+// NEXORA — root shell (Web Prototype App.tsx): TopBar + (ActivityBar | view)
+// + StatusBar, wrapped in the global keyboard shortcut map (CallbackShortcuts
+// + an autofocus Focus node so bindings work when nothing else has focus).
+// The body is a Stack hosting the AgentRunner overlay (fixed bottom-48
+// right-24 like the prototype), and the main view switcher cross-fades in
+// 150ms (AnimatePresence).
 //
 // Audit fix #3: onWindowClose uses the GLOBAL navigatorKey exported from
 // lib/main.dart — never a context above MaterialApp.
@@ -14,7 +17,9 @@ import '../../main.dart' show navigatorKey;
 import '../providers/editor_provider.dart';
 import '../providers/ui_provider.dart';
 import '../widgets/activity_bar.dart';
+import '../widgets/agent_runner.dart';
 import '../widgets/command_palette.dart';
+import '../widgets/nexora_ui.dart';
 import '../widgets/status_bar.dart';
 import '../widgets/top_bar.dart';
 import 'editor_workspace.dart';
@@ -145,29 +150,69 @@ class _MainLayoutState extends State<MainLayout> with WindowListener {
         skipTraversal: true,
         child: Scaffold(
           backgroundColor: ui.palette.background,
-          body: Column(
+          body: Stack(
             children: [
-              const TopBar(),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+              Positioned.fill(
+                child: Column(
                   children: [
-                    const ActivityBar(),
+                    const TopBar(),
                     Expanded(
-                      child: ui.view == ViewMode.home
-                          ? const HomeDashboard()
-                          : ui.view == ViewMode.settings
-                              ? const SettingsScreen()
-                              : const EditorWorkspace(),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const ActivityBar(),
+                          Expanded(
+                            // View transition: 150ms fade (AnimatePresence).
+                            child: AnimatedSwitcher(
+                              duration: NxMotion.fast,
+                              switchInCurve: NxMotion.curve,
+                              switchOutCurve: Curves.easeIn,
+                              transitionBuilder: (child, animation) =>
+                                  FadeTransition(
+                                      opacity: animation, child: child),
+                              layoutBuilder: (currentChild, previousChildren) =>
+                                  Stack(
+                                    alignment: Alignment.center,
+                                    fit: StackFit.expand,
+                                    children: <Widget>[
+                                      ...previousChildren.cast<Widget>(),
+                                      if (currentChild != null) currentChild,
+                                    ],
+                                  ),
+                              child: KeyedSubtree(
+                                key: ValueKey(ui.view),
+                                child: _buildView(ui.view),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const StatusBar(),
                   ],
                 ),
               ),
-              const StatusBar(),
+              // AgentRunner overlay (prototype: fixed bottom-48 right-24).
+              const Positioned(
+                bottom: 48,
+                right: 24,
+                child: AgentRunner(),
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildView(ViewMode view) {
+    switch (view) {
+      case ViewMode.home:
+        return const HomeDashboard();
+      case ViewMode.settings:
+        return const SettingsScreen();
+      case ViewMode.editor:
+        return const EditorWorkspace();
+    }
   }
 }

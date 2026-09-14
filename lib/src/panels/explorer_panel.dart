@@ -9,9 +9,13 @@ import '../providers/ui_provider.dart';
 import '../providers/workspace_provider.dart';
 import '../services/fs_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/nexora_ui.dart';
 
-/// Workspace file tree: open/toggle nodes, create/rename/delete with dialogs
-/// and context menus, real error surfacing on every FS failure.
+/// Explorer panel — the Web Prototype's Explorer.tsx visuals on top of the
+/// REAL WorkspaceProvider tree: lazy expand/toggle, open-file on click (with
+/// error SnackBars), active-tab highlight, CRUD dialogs with confirmation,
+/// right-click context menus, and recursive collapse-all. All provider calls
+/// are unchanged from the functional build.
 class ExplorerPanel extends StatefulWidget {
   const ExplorerPanel({Key? key}) : super(key: key);
 
@@ -56,6 +60,24 @@ class _ExplorerPanelState extends State<ExplorerPanel> {
     }
   }
 
+  /// Collapse every expanded directory below the root (deepest first). Each
+  /// collapse goes through WorkspaceProvider.collapseNode so the tree state
+  /// stays owned by the provider (it notifies per node — fine).
+  void _collapseAll(WorkspaceProvider ws) {
+    final root = ws.root;
+    if (root == null) return;
+    void visit(FileNode dir) {
+      for (final child in dir.children) {
+        if (child.isDir) {
+          visit(child);
+          if (child.expanded) ws.collapseNode(child);
+        }
+      }
+    }
+
+    visit(root);
+  }
+
   // -------------------------------------------------------------- dialogs
 
   Future<String?> _promptName(String title, String label, {String? initial}) {
@@ -78,7 +100,7 @@ class _ExplorerPanelState extends State<ExplorerPanel> {
               enabledBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: c.borderLight)),
               focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: c.accent)),
+                  borderSide: BorderSide(color: c.blue500)),
             ),
             onSubmitted: (v) => Navigator.of(ctx).pop(v),
           ),
@@ -90,7 +112,7 @@ class _ExplorerPanelState extends State<ExplorerPanel> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: Text('OK', style: TextStyle(color: c.accent)),
+            child: Text('OK', style: TextStyle(color: c.blue400)),
           ),
         ],
       ),
@@ -159,7 +181,7 @@ class _ExplorerPanelState extends State<ExplorerPanel> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('Delete', style: TextStyle(color: c.error)),
+            child: Text('Delete', style: TextStyle(color: c.red400)),
           ),
         ],
       ),
@@ -176,13 +198,31 @@ class _ExplorerPanelState extends State<ExplorerPanel> {
 
   // -------------------------------------------------------- context menu
 
-  Future<void> _showContextMenu(
-      WorkspaceProvider ws, FileNode node, Offset globalPosition) async {
+  PopupMenuItem<String> _menuItem(String value, String label, AppColors c,
+      {Color? color}) {
+    return PopupMenuItem<String>(
+      value: value,
+      height: 30,
+      child: Text(
+        label,
+        style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 13,
+            color: color ?? c.textPrimary),
+      ),
+    );
+  }
+
+  /// Prototype-styled context menu (bg panelBackground, borderLight, radius 6,
+  /// 30px items). The [rowContext] comes from the tree row itself so the
+  /// route captures this panel's scoped popup theme (item hover #37373d).
+  Future<void> _showContextMenu(WorkspaceProvider ws, FileNode node,
+      Offset globalPosition, BuildContext rowContext) async {
     final c = context.read<UiProvider>().palette;
     final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
+        Overlay.of(rowContext).context.findRenderObject() as RenderBox;
     final action = await showMenu<String>(
-      context: context,
+      context: rowContext,
       position: RelativeRect.fromLTRB(
         globalPosition.dx,
         globalPosition.dy,
@@ -190,37 +230,22 @@ class _ExplorerPanelState extends State<ExplorerPanel> {
         overlay.size.height - globalPosition.dy,
       ),
       color: c.panelBackground,
+      elevation: 8,
+      shadowColor: Colors.black,
+      menuPadding: const EdgeInsets.symmetric(vertical: 4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: BorderSide(color: c.borderLight),
+      ),
       items: [
-        if (!node.isDir)
-          PopupMenuItem(
-            value: 'open',
-            height: 34,
-            child: Text('Open',
-                style: TextStyle(color: c.textPrimary, fontSize: 13)),
-          ),
-        PopupMenuItem(
-            value: 'newfile',
-            height: 34,
-            child: Text('New File',
-                style: TextStyle(color: c.textPrimary, fontSize: 13))),
-        PopupMenuItem(
-            value: 'newfolder',
-            height: 34,
-            child: Text('New Folder',
-                style: TextStyle(color: c.textPrimary, fontSize: 13))),
-        PopupMenuItem(
-            value: 'rename',
-            height: 34,
-            child: Text('Rename…',
-                style: TextStyle(color: c.textPrimary, fontSize: 13))),
-        PopupMenuItem(
-            value: 'delete',
-            height: 34,
-            child: Text('Delete',
-                style: TextStyle(color: c.error, fontSize: 13))),
+        if (!node.isDir) _menuItem('open', 'Open', c),
+        _menuItem('newfile', 'New File', c),
+        _menuItem('newfolder', 'New Folder', c),
+        _menuItem('rename', 'Rename…', c),
+        _menuItem('delete', 'Delete', c, color: c.red400),
       ],
     );
-    if (action == null) return;
+    if (action == null || !mounted) return;
     switch (action) {
       case 'open':
         _openFile(node);
@@ -256,84 +281,131 @@ class _ExplorerPanelState extends State<ExplorerPanel> {
   Widget build(BuildContext context) {
     final ws = context.watch<WorkspaceProvider>();
     final editor = context.watch<EditorProvider>();
-    final c = context.read<UiProvider>().palette;
+    final c = context.watch<UiProvider>().palette;
     final activePath = editor.activeTab?.path;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: c.activityBar,
-        border: Border(right: BorderSide(color: c.border)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header
-          Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: c.border)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'EXPLORER',
-                    style: TextStyle(
-                      color: c.textPrimary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-                _HeaderIcon(
-                  icon: Icons.post_add,
-                  tooltip: 'New File',
-                  palette: c,
-                  onTap: ws.hasWorkspace
-                      ? () => _createNewItem(ws, isDir: false)
-                      : null,
-                ),
-                _HeaderIcon(
-                  icon: Icons.create_new_folder,
-                  tooltip: 'New Folder',
-                  palette: c,
-                  onTap: ws.hasWorkspace
-                      ? () => _createNewItem(ws, isDir: true)
-                      : null,
-                ),
-                _HeaderIcon(
-                  icon: Icons.refresh,
-                  tooltip: 'Refresh',
-                  palette: c,
-                  onTap: ws.hasWorkspace ? () => _refresh(ws) : null,
-                ),
-              ],
-            ),
+    // Scoped theme: the popup menu route captures it from the tree-row
+    // contexts below this wrapper (hover #37373d, 13px Inter items, panel
+    // background + borderLight + radius 6 + shadow).
+    return Theme(
+      data: Theme.of(context).copyWith(
+        hoverColor: c.selectedBackground,
+        popupMenuTheme: PopupMenuThemeData(
+          color: c.panelBackground,
+          elevation: 8,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(6),
+            side: BorderSide(color: c.borderLight),
           ),
-          Expanded(
-            child: !ws.hasWorkspace
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+          textStyle: TextStyle(
+              fontFamily: 'Inter', fontSize: 13, color: c.textPrimary),
+        ),
+      ),
+      child: Container(
+        color: c.activityBar,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const NexoraPanelHeader(title: 'Explorer'),
+            Expanded(
+              child: !ws.hasWorkspace
+                  ? _emptyState(c)
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text('Open a folder to begin',
-                            style: TextStyle(
-                                color: c.textSecondary, fontSize: 12)),
-                        const SizedBox(height: 6),
-                        Text('Ctrl+O opens a recent folder',
-                            style: TextStyle(
-                                color: c.textSecondary, fontSize: 11)),
+                        _subHeader(ws, c),
+                        Expanded(
+                          child: ws.root == null
+                              ? const SizedBox.shrink()
+                              : ListView(
+                                  padding:
+                                      const EdgeInsets.only(top: 2, bottom: 8),
+                                  children: _buildNode(
+                                      ws, ws.root!, activePath, c),
+                                ),
+                        ),
                       ],
                     ),
-                  )
-                : ListView(
-                    padding: const EdgeInsets.only(top: 2),
-                    children: ws.root == null
-                        ? const <Widget>[]
-                        : _buildNode(ws, ws.root!, 0, activePath),
-                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyState(AppColors c) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.folder_open_outlined, size: 28, color: c.textSecondary),
+          const SizedBox(height: 10),
+          Text(
+            'Open a folder to begin',
+            style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 12,
+                color: c.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          const NexoraKbd('Ctrl+O'),
+        ],
+      ),
+    );
+  }
+
+  /// Prototype Explorer sub-header: "NEXORA" (or the workspace root basename)
+  /// 11px bold uppercase + action icons (gap 8, 14px #858585 → white 150ms).
+  Widget _subHeader(WorkspaceProvider ws, AppColors c) {
+    final rootName = ws.root?.name ?? '';
+    final label = rootName.isEmpty ? 'NEXORA' : rootName.toUpperCase();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: c.activityBar,
+        border: Border(bottom: BorderSide(color: c.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: c.textPrimary,
+              ),
+            ),
+          ),
+          NexoraIconButton(
+            icon: Icons.note_add,
+            size: 14,
+            tooltip: 'New File',
+            onPressed: () => _createNewItem(ws, isDir: false),
+          ),
+          const SizedBox(width: 8),
+          NexoraIconButton(
+            icon: Icons.create_new_folder_outlined,
+            size: 14,
+            tooltip: 'New Folder',
+            onPressed: () => _createNewItem(ws, isDir: true),
+          ),
+          const SizedBox(width: 8),
+          NexoraIconButton(
+            icon: Icons.refresh,
+            size: 13,
+            tooltip: 'Refresh',
+            onPressed: () => _refresh(ws),
+          ),
+          const SizedBox(width: 8),
+          NexoraIconButton(
+            icon: Icons.content_copy,
+            size: 14,
+            tooltip: 'Collapse All',
+            onPressed: () => _collapseAll(ws),
           ),
         ],
       ),
@@ -341,12 +413,10 @@ class _ExplorerPanelState extends State<ExplorerPanel> {
   }
 
   List<Widget> _buildNode(
-      WorkspaceProvider ws, FileNode node, int level, String? activePath) {
-    final c = context.read<UiProvider>().palette;
+      WorkspaceProvider ws, FileNode node, String? activePath, AppColors c) {
     final rows = <Widget>[
       _TreeRow(
         node: node,
-        level: level,
         active: activePath == node.path,
         palette: c,
         onTap: () {
@@ -366,33 +436,51 @@ class _ExplorerPanelState extends State<ExplorerPanel> {
               }
             : null,
         onSecondaryTapUp: ws.hasWorkspace
-            ? (details) =>
-                _showContextMenu(ws, node, details.globalPosition)
+            ? (details, rowContext) =>
+                _showContextMenu(ws, node, details.globalPosition, rowContext)
             : null,
       ),
     ];
     if (node.isDir && node.expanded) {
-      for (final child in node.children) {
-        rows.addAll(_buildNode(ws, child, level + 1, activePath));
-      }
+      // Prototype nesting: children container with border-l + ml-24; the rows
+      // inside keep their own px-16 padding.
+      rows.add(
+        Container(
+          margin: const EdgeInsets.only(left: 24),
+          decoration: BoxDecoration(
+            border: Border(left: BorderSide(color: c.border)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final child in node.children)
+                ..._buildNode(ws, child, activePath, c),
+            ],
+          ),
+        ),
+      );
     }
     return rows;
   }
 }
 
+// ------------------------------------------------------------------ rows
+
+/// Prototype file-tree row: px 16 py 4, 13px name, 150ms hover fill
+/// (#2a2d2e) or active fill (#37373d), extension-colored 14px icon (active
+/// file name takes the icon color).
 class _TreeRow extends StatefulWidget {
   final FileNode node;
-  final int level;
   final bool active;
   final AppColors palette;
   final VoidCallback? onTap;
   final VoidCallback? onDoubleTap;
   final VoidCallback? onChevronTap;
-  final void Function(TapUpDetails details)? onSecondaryTapUp;
+  final void Function(TapUpDetails details, BuildContext rowContext)?
+      onSecondaryTapUp;
 
   const _TreeRow({
     required this.node,
-    required this.level,
     required this.active,
     required this.palette,
     required this.onTap,
@@ -408,60 +496,15 @@ class _TreeRow extends StatefulWidget {
 class _TreeRowState extends State<_TreeRow> {
   bool _hover = false;
 
-  IconData _fileIcon(String name) {
-    final dot = name.lastIndexOf('.');
-    final ext = dot == -1 ? '' : name.substring(dot + 1).toLowerCase();
-    switch (ext) {
-      case 'dart':
-      case 'py':
-      case 'js':
-      case 'ts':
-      case 'c':
-      case 'cpp':
-      case 'rs':
-      case 'go':
-      case 'java':
-      case 'sh':
-        return Icons.code;
-      case 'md':
-      case 'txt':
-        return Icons.description;
-      case 'png':
-      case 'jpg':
-      case 'jpeg':
-      case 'gif':
-      case 'svg':
-      case 'webp':
-      case 'ico':
-        return Icons.image;
-      case 'json':
-      case 'yaml':
-      case 'yml':
-      case 'toml':
-      case 'xml':
-      case 'ini':
-      case 'cfg':
-        return Icons.settings;
-      default:
-        return Icons.description;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = widget.palette;
     final node = widget.node;
     final active = widget.active;
-    final hovered = _hover && !active;
-
-    Color rowBg;
-    if (active) {
-      rowBg = c.panelBackground;
-    } else if (hovered) {
-      rowBg = c.borderLight.withValues(alpha: 0.18);
-    } else {
-      rowBg = const Color(0x00000000);
-    }
+    final spec = _iconFor(node.name, c);
+    final nameColor = active
+        ? (node.isDir ? c.textPrimary : (spec.known ? spec.color : c.textOnAccent))
+        : c.textPrimary;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -471,40 +514,45 @@ class _TreeRowState extends State<_TreeRow> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         onDoubleTap: widget.onDoubleTap,
-        onSecondaryTapUp: widget.onSecondaryTapUp,
-        child: Container(
-          height: 26,
-          padding: EdgeInsets.only(left: 8.0 + widget.level * 12.0, right: 6),
-          decoration: BoxDecoration(
-            color: rowBg,
-            border: Border(
-              left: BorderSide(
-                width: 2,
-                color: active ? c.accent : const Color(0x00000000),
-              ),
-            ),
-          ),
+        onSecondaryTapUp: widget.onSecondaryTapUp == null
+            ? null
+            : (details) => widget.onSecondaryTapUp!(details, context),
+        child: AnimatedContainer(
+          duration: NxMotion.fast,
+          curve: NxMotion.curve,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          color: active
+              ? c.selectedBackground
+              : (_hover ? c.inputBackground : null),
           child: Row(
             children: [
-              if (node.isDir)
+              if (node.isDir) ...[
                 SizedBox(
-                  width: 16,
+                  width: 18,
+                  height: 18,
                   child: InkWell(
                     onTap: widget.onChevronTap,
-                    child: Icon(
-                      node.expanded ? Icons.expand_more : Icons.chevron_right,
-                      size: 16,
-                      color: c.textSecondary,
+                    child: Center(
+                      child: Icon(
+                        node.expanded
+                            ? Icons.expand_more
+                            : Icons.chevron_right,
+                        size: 14,
+                        color: c.textSecondary,
+                      ),
                     ),
                   ),
-                )
-              else
-                const SizedBox(width: 16),
-              const SizedBox(width: 2),
+                ),
+                const SizedBox(width: 2),
+              ],
               Icon(
-                node.isDir ? Icons.folder : _fileIcon(node.name),
-                size: node.isDir ? 16 : 15,
-                color: node.isDir ? c.warning : c.blueLight,
+                node.isDir
+                    ? (node.expanded
+                        ? Icons.folder_open
+                        : Icons.folder_outlined)
+                    : spec.icon,
+                size: 14,
+                color: node.isDir ? c.warning : spec.color,
               ),
               const SizedBox(width: 6),
               Expanded(
@@ -513,10 +561,9 @@ class _TreeRowState extends State<_TreeRow> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
+                    fontFamily: 'Inter',
                     fontSize: 13,
-                    color: active
-                        ? c.blueLight
-                        : (node.isDir ? c.textPrimary : c.textPrimary),
+                    color: nameColor,
                   ),
                 ),
               ),
@@ -528,33 +575,40 @@ class _TreeRowState extends State<_TreeRow> {
   }
 }
 
-class _HeaderIcon extends StatelessWidget {
+// ------------------------------------------------------------- icon spec
+
+class _IconSpec {
   final IconData icon;
-  final String tooltip;
-  final AppColors palette;
-  final VoidCallback? onTap;
+  final Color color;
+  final bool known; // extension had a prototype-specific mapping
+  const _IconSpec(this.icon, this.color, this.known);
+}
 
-  const _HeaderIcon({
-    required this.icon,
-    required this.tooltip,
-    required this.palette,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onTap != null;
-    return IconButton(
-      tooltip: tooltip,
-      visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-      padding: const EdgeInsets.all(4),
-      icon: Icon(
-        icon,
-        size: 14,
-        color: enabled ? palette.textSecondary : palette.textSecondary.withValues(alpha: 0.4),
-      ),
-      onPressed: onTap,
-    );
+/// Prototype Explorer icon mapping (icon 14, colored by extension).
+_IconSpec _iconFor(String name, AppColors c) {
+  final dot = name.lastIndexOf('.');
+  final ext = dot == -1 ? '' : name.substring(dot + 1).toLowerCase();
+  switch (ext) {
+    case 'dart':
+    case 'ts':
+    case 'tsx':
+    case 'js':
+    case 'jsx':
+      return _IconSpec(Icons.code, c.blueLight, true);
+    case 'json':
+      return _IconSpec(Icons.data_object, c.iconJson, true);
+    case 'css':
+      return _IconSpec(Icons.code, c.iconCss, true);
+    case 'md':
+      return _IconSpec(Icons.description, c.iconMd, true);
+    case 'svg':
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+      return _IconSpec(Icons.image_outlined, c.iconSvg, true);
+    case 'py':
+      return _IconSpec(Icons.code, c.success, true);
+    default:
+      return _IconSpec(Icons.description, c.textSecondary, false);
   }
 }
